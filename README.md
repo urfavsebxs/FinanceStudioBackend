@@ -49,9 +49,22 @@ src/main/java/com/sebas/finance/
     │       ├── controller/              # UserController + DTOs
     │       ├── mapper/                  # UserMapper
     │       └── persistence/             # UserDocument (MongoDB)
+    ├── financial/                         # Modulo financiero
+    │   ├── domain/
+    │   │   ├── model/                   # Entry, EntryId, EntryMonth, EntryCategory, EntryLabel, EntryAmount
+    │   │   ├── repository/              # FinancialEntryRepository (puerto)
+    │   │   └── exception/               # EntryNotFound, InvalidMonth, FutureMonth, InvalidEntryData
+    │   ├── application/
+    │   │   ├── service/                 # FinancialEntryService (interfaz + impl)
+    │   │   └── usecase/                 # SaveEntry, DeleteEntry, FindByMonth, FindByYear, GetSummary
+    │   └── infrastructure/
+    │       ├── adapter/                 # FinancialEntryAdapter, FinancialEntryMongoRepository
+    │       ├── controller/              # FinancialEntryController + DTOs
+    │       ├── mapper/                  # FinancialEntryMapper
+    │       └── persistence/             # FinancialEntryDocument (MongoDB)
     └── shared/
         └── infrastructure/
-            └── config/                  # UserBeanConfig, AuthBeanConfig
+            └── config/                  # UserBeanConfig, AuthBeanConfig, FinancialBeanConfig
 ```
 
 ### Capas
@@ -90,6 +103,36 @@ Modulo de gestion de usuarios con operaciones CRUD completas.
 - Consultar usuario por ID
 - Listar todos los usuarios
 
+### Financial Module
+
+Modulo de gestion de entradas financieras (ingresos, gastos, ahorros) con aislamiento por usuario.
+
+**Funcionalidades:**
+- Crear, eliminar entradas financieras por mes
+- Consultar entradas del mes o del anio completo
+- Resumen financiero con totales, desglose por categoria y tasa de ahorro
+- Aislamiento completo de datos por usuario (cada usuario solo ve sus propios registros)
+
+**Categorias soportadas:** `income` (ingresos), `expense` (gastos), `savings` (ahorros)
+
+**Coleccion MongoDB:** `financial_entries`
+```json
+{
+  "_id": "uuid",
+  "userId": "email@usuario.com",
+  "month": "2024-05-01T00:00:00Z",
+  "category": "income",
+  "label": "Salario",
+  "amount": 5000.00
+}
+```
+
+**Validaciones:**
+- El mes no puede ser futuro
+- El concepto es obligatorio (max 60 caracteres)
+- El monto debe ser mayor a 0
+- La categoria debe ser `income`, `expense` o `savings`
+
 ## Endpoints
 
 ### Auth
@@ -118,9 +161,47 @@ Modulo de gestion de usuarios con operaciones CRUD completas.
 | `GET` | `/api/v1/users` | Listar usuarios | - |
 | `GET` | `/api/v1/users/{id}` | Obtener usuario por ID | - |
 
+### Entries (Requiere JWT)
+
+| Metodo | Ruta | Descripcion | Body / Params |
+|--------|------|-------------|---------------|
+| `GET` | `/api/v1/entries?month=2024-05` | Entradas del mes | Query param `month` (YYYY-MM) |
+| `GET` | `/api/v1/entries/summary?month=2024-05&range=monthly` | Resumen financiero | Query params `month`, `range` (monthly\|annual) |
+| `POST` | `/api/v1/entries` | Crear entrada | `{ "month", "category", "label", "amount" }` |
+| `DELETE` | `/api/v1/entries` | Eliminar entrada | `{ "id" }` |
+
+**Response GET /entries:**
+```json
+{
+  "entries": [
+    {
+      "id": "uuid",
+      "month": "2024-05",
+      "category": "income",
+      "label": "Salario",
+      "amount": 5000.00
+    }
+  ]
+}
+```
+
+**Response GET /entries/summary:**
+```json
+{
+  "totals": { "income": 5000.00, "expense": 2000.00, "savings": 1500.00 },
+  "breakdown": {
+    "income": [{ "label": "Salario", "amount": 5000.00 }],
+    "expense": [{ "label": "Arriendo", "amount": 1200.00 }],
+    "savings": [{ "label": "Fondo de emergencia", "amount": 1500.00 }]
+  },
+  "rate": 30,
+  "grandTotal": 8500.00
+}
+```
+
 ### Rutas Protegidas
 
-Las rutas `/api/v1/auth/**` y `/api/v1/users/**` son publicas. Cualquier otra ruta requiere un header `Authorization: Bearer <access-token>` valido.
+Las rutas `/api/v1/auth/**` y `/api/v1/users/**` son publicas. Las rutas `/api/v1/entries/**` requieren autenticacion JWT. Cualquier otra ruta requiere un header `Authorization: Bearer <access-token>` valido.
 
 ## Configuracion
 
