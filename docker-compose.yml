@@ -1,0 +1,39 @@
+services:
+  finance_backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: finance_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - SPRING_DATA_MONGODB_URI=${SPRING_DATA_MONGODB_URI}
+      - SPRING_DATA_MONGODB_DATABASE=${SPRING_DATA_MONGODB_DATABASE}
+      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET}
+      - TZ=America/Bogota
+    networks:
+      - app_network
+      - backend_tunnel_net
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 512M
+
+  cloudflare-backend-tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: finance-cloudflare-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://finance_backend:8080
+    networks:
+      - backend_tunnel_net
+
+networks:
+  app_network:
+    external: true
+    name: app_network
+
+  backend_tunnel_net:
+    driver: bridge
