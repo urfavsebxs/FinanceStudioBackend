@@ -1,30 +1,57 @@
 package com.sebas.finance;
 
+import com.sebas.finance.module.auth.infrastructure.security.JwtAuthenticationFilter;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import static org.springframework.security.config.Customizer.withDefaults;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
+
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // Deshabilitamos CSRF ya que para APIs REST con Stateless no suele ser necesario
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Permitimos el acceso total a todas las rutas
-                        .anyRequest().permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/api/v1/users/**").permitAll()
+                        .anyRequest().authenticated()
                 )
-                // Opcional: Si quieres evitar que se muestre el formulario de login por defecto
-                .formLogin(AbstractHttpConfigurer::disable)
-                .httpBasic(withDefaults());
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(List.of("http://localhost:4321"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 }
